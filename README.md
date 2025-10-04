@@ -258,8 +258,15 @@ El equipo busca construir una **plataforma viva, inteligente y en evolución con
 ---
 
 ## 📬 Contacto del Equipo
-📧 proyecto.ai.tools@gmail.com  
-🌐 GitHub: [github.com/ai-tools-directory](#)  
+
+**Integrantes:**  
+- **Alejandro Ortiz López** – [alexormx@gmail.com](mailto:alexormx@gmail.com)  
+- **Marco Navarro** – [arcoa05tony@gmail.com](mailto:arcoa05tony@gmail.com)  
+- **José Roberto Escamilla Meza** – [escamillamezaj@gmail.com](mailto:escamillamezaj@gmail.com)  
+
+**Repositorio oficial:**  
+🔗 [https://github.com/alexormx/ai-tools-directory](https://github.com/alexormx/ai-tools-directory)
+
 🧠 Proyecto académico – Octubre 2025  
 
 ---
