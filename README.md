@@ -1,6 +1,6 @@
 # 🧠 AI TOOLS DIRECTORY  
 **Plataforma Inteligente de Herramientas y Tendencias en Inteligencia Artificial**  
-Equipo de Desarrollo IA – Octubre 2025  
+Equipo de Desarrollo - IA Maverick – Octubre 2025  
 
 ---
 
@@ -257,7 +257,7 @@ El equipo busca construir una **plataforma viva, inteligente y en evolución con
 
 ---
 
-## 📬 Contacto del Equipo
+## 📬 Contacto del Equipo AI MAVERIC
 
 **Integrantes:**  
 - **Alejandro Ortiz López** – [alexormx@gmail.com](mailto:alexormx@gmail.com)  
