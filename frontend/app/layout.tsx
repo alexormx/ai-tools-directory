@@ -1,5 +1,6 @@
 import React from 'react';
 import Providers from './providers';
+import NavBar from '../components/NavBar';
 
 export const metadata = {
   title: 'AI Tools Directory',
@@ -11,7 +12,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <head />
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <NavBar />
+          {children}
+        </Providers>
       </body>
     </html>
   );
