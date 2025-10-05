@@ -246,9 +246,210 @@ Usuario → (Query+Filtros) → Frontend construye URL → /api/tools/ → DRF f
 ---
 
 ## 🌐 Integración de Automatización (n8n)
-- **Tareas automáticas:** actualización de herramientas, clasificación y feeds de noticias.  
-- **Workflows programados:** obtención diaria de datos y envío al backend vía API.  
-- **Enriquecimiento de datos:** etiquetas, categorías y deduplicación automatizada.  
+
+Esta sección describe la estrategia integral para: (1) descubrir y recolectar nuevas herramientas y noticias de IA, (2) normalizar y enriquecer los datos, y (3) aplicar un flujo de aprobación manual antes de su publicación pública.
+
+### 🎯 Objetivos de la Ingesta
+1. Capturar señales relevantes (herramientas, lanzamientos, noticias, artículos técnicos) con latencia baja (≤ 6h en MVP).
+2. Evitar duplicados y ruido (spam, contenido comercial irrelevante).
+3. Enriquecer cada item con metadatos consistentes (categorías, tags, resumen, origen, puntuaciones de calidad).
+4. Permitir un punto de control humano (moderación) antes de exposición pública.
+5. Mantener trazabilidad de fuente, primer avistamiento y últimos refrescos.
+
+### 🗂️ Tipos de Contenido
+| Tipo | Descripción | Ejemplos de Campos Core |
+|------|-------------|--------------------------|
+| Tool Discovery | Nuevas herramientas / plataformas de IA | name, url, description_raw, pricing_raw, source, categories_sugeridas |
+| News / Article | Noticias, posts de blog, investigaciones | title, url, published_at, excerpt_raw, source, topics_sugeridos |
+| Release Notes (futuro) | Cambios en herramientas conocidas | tool_slug, version, notes_raw |
+| Dataset (futuro) | Publicación de dataset relevante | name, url, modality, license |
+
+### 🔎 Fuentes Planeadas (Agrupadas)
+| Grupo | Fuentes (Ejemplos) | Método | Frecuencia |
+|-------|--------------------|--------|-----------|
+| RSS / Syndication | HuggingFace blog, OpenAI blog, Stability, Google AI | RSS Poll | 30–60 min |
+| Curated Listings | Product Hunt (categorías IA), BetaList | API / HTML parse (n8n + limit) | 2–3 h |
+| Code & Repos | GitHub Trending (topics: ai, llm, nlp, cv) | API/HTML + filtro stars | 6 h |
+| Community Signals | Hacker News (keywords: LLM, AI, OpenAI, model) | Algolia API | 1 h |
+| Vendor Changelogs | OpenAI / Anthropic / Replicate changelogs | RSS / HTML diff | 6 h |
+| Newsletters (futuro) | Import manual + parsing estructurado | Email -> Parse | Diario |
+| Research (futuro) | arXiv cs.AI / ML | API arXiv | Diario |
+
+> Nota: Toda fuente con scraping HTML debe respetar robots.txt y límites de 1 req/seg (configurable en n8n). Si una fuente ofrece API oficial, se prefiere API.
+
+### 🧬 Pipeline Lógico (Stages)
+1. Fetch bruto (pull) o recepción (webhook) → item(s) crudos.
+2. Normalización (campos uniformes): slugify, limpiar HTML, truncar longitudes.
+3. Deduplicación: hash SHA256 de `canonical_url` + tipo. Si existe → actualizar `last_seen_at`.
+4. Enriquecimiento:
+   - Extracción metadatos (OpenGraph / `<meta>`).
+   - Limpieza de descripciones (strip markdown).
+   - Clasificación categorías (Zero-Shot) → top N con score ≥ umbral.
+   - Extracción tags clave (RAKE / KeyBERT / embeddings plan futuro).
+   - Resumen (modelo ligero primero, luego LLM si > umbral tamaño).
+   - Detección de idioma (descartar no-EN/ES en MVP configurable).
+5. Scoring preliminar: heurística (longitud título, reputación fuente, signals sociales si disponibles).
+6. Persistencia en estado `draft` (no público).
+7. Moderación manual (admin): aprobar / rechazar / editar.
+8. Publicación → visible en APIs públicas y frontend (ISR revalidate).
+
+### 🧾 Estados del Ciclo de Vida
+| Estado | Transición Desde | Transición A | Descripción |
+|--------|------------------|-------------|-------------|
+| draft | ingest inicial | pending_review (opcional), rejected | Item recién ingresado y enriquecido automáticamente. |
+| pending_review | draft | published, rejected | Marcado para revisión humana (batch). |
+| rejected | draft/pending_review | (reopen manual) | No cumple criterios (spam, duplicado conceptual, baja calidad). |
+| published | pending_review | (unpublish manual) | Visible en API pública y frontend. |
+
+### 👩‍💻 Moderación Manual
+Se gestionará inicialmente vía Django Admin:
+- Filtros: estado, tipo, fuente, fecha ingest, score heurístico.
+- Acciones masivas: aprobar lote, rechazar lote, recalcular enriquecimiento.
+- Vista detalle: diff de enriquecimiento (versión previa vs regenerada) futura.
+
+### 🔐 Seguridad de la Ingesta
+| Aspecto | Implementación |
+|---------|----------------|
+| Autenticación webhook | Header `X-Webhook-Secret: $N8N_WEBHOOK_SECRET` |
+| Idempotencia | Hash de URL + tipo como clave natural |
+| Rate limiting (futuro) | Redis counter per source |
+| Sanitización | Escape/strip HTML antes de almacenar |
+| Validación URL | `http(s)` + longitud < 500 + dominio permitido opcional |
+
+### ♻️ Idempotencia & Deduplicación
+Pseudo algoritmo:
+```
+canonical_url = normalizar(url)
+key_hash = sha256(tipo + '::' + canonical_url)
+if existe(key_hash): update last_seen_at, merge campos vacíos -> existentes
+else: crear registro nuevo (estado=draft)
+```
+
+### 🧪 Validaciones Automáticas (Pre-Publicación)
+| Chequeo | Regla | Acción |
+|---------|-------|-------|
+| Longitud título | 5 ≤ palabras ≤ 24 | Flag warning si falla |
+| Descripción vacía | Obligatoria (≥ 40 chars post limpieza) | Regenerar intento/resumen |
+| Dominio bloqueado | Lista negra (config) | Rechazar directo |
+| Idioma | es/en | Marcar para revisión si diferente |
+| Duplicado semántico (futuro) | similitud > 0.93 embeddings | Merge / marcar duplicado |
+
+### 🛠️ Estructura de Workflows n8n (Convenciones)
+| Prefijo | Propósito | Ejemplo |
+|---------|----------|---------|
+| `tools_` | Descubrimiento herramientas | `tools_producthunt_scan` |
+| `news_` | Noticias / artículos | `news_rss_ai_blogs` |
+| `enrich_` | Enriquecimiento batch | `enrich_recompute_summaries` |
+| `sync_` | Mantenimiento / housekeeping | `sync_reindex_daily` |
+
+Variables críticas (en `.env` / n8n env panel):
+`N8N_WEBHOOK_SECRET`, límites de requests, claves API externas (no se commitean).
+
+### 🧵 Campos de Datos Normalizados (MVP)
+| Campo | Tool | News | Descripción |
+|-------|------|------|-------------|
+| name/title | ✓ | ✓ | Texto principal |
+| slug | ✓ | (derivado) | Slug único para URL interna |
+| url | ✓ | ✓ | Enlace canónico |
+| source_kind | ✓ | ✓ | rss, api, scrape, manual |
+| source_name | ✓ | ✓ | Identificador humano ("producthunt", "openai_blog") |
+| description_raw | ✓ | (opcional) | Texto original antes de resumen |
+| excerpt_raw | - | ✓ | Extracto original noticia |
+| summary | ✓ | ✓ | Resumen generado / validado |
+| categories | ✓ | (tags) | Lista sugerida (hasta 5) |
+| tags | ✓ | ✓ | Palabras clave |
+| published_at | (opcional) | ✓ | Fecha original |
+| discovered_at | ✓ | ✓ | Fecha primera ingest |
+| last_seen_at | ✓ | ✓ | Última vez que la fuente lo listó |
+| status | ✓ | ✓ | Workflow state |
+| quality_score | ✓ | ✓ | 0–1 heurístico |
+| external_id | ✓ | ✓ | ID de fuente si disponible |
+| url_hash | ✓ | ✓ | SHA256 dedupe |
+
+### 🔄 Frecuencias de Ejecución (Propuesta MVP)
+| Grupo | Frecuencia | Mecanismo |
+|-------|-----------|-----------|
+| RSS blogs IA | 30 min | Cron n8n |
+| Product Hunt IA | 3 h | Cron + filtro categoría |
+| GitHub trending | 6 h | Cron + topics & stars > X |
+| Hacker News keywords | 60 min | Cron (Algolia API search) |
+| Re-enriquecimiento (score bajo) | 12 h | Celery task (futuro) |
+
+### 🧱 Flujo End-to-End (Resumen Textual)
+```
+Fuente → n8n fetch → Normalización → Hash & Dedupe → Enriquecimiento → Persist draft → (Opcional: heurística marca pending_review) → Moderador aprueba → Publicación → Frontend revalida
+```
+
+### 📨 Payload Webhook Ejemplo (Noticias)
+```json
+{
+  "type": "news",
+  "title": "OpenAI lanza nueva API de embeddings",
+  "url": "https://openai.com/blog/new-embeddings",
+  "published_at": "2025-10-05T09:30:00Z",
+  "source_kind": "rss",
+  "source_name": "openai_blog",
+  "excerpt_raw": "Today we introduce a more efficient embedding model...",
+  "topics_sugeridos": ["embeddings", "nlp"],
+  "external_id": "openai_blog_20251005_0930"
+}
+```
+
+Respuesta (idempotente):
+```json
+{ "status": "accepted", "id": 418, "state": "draft", "duplicate": false }
+```
+
+Si duplicado:
+```json
+{ "status": "accepted", "id": 418, "state": "draft", "duplicate": true }
+```
+
+### ✅ Criterios para Publicación Automática (Opcional Futuro)
+Activar sólo cuando la precisión del enriquecimiento alcance umbral aceptable (>90% validaciones manuales):
+| Regla | Parámetro |
+|-------|-----------|
+| quality_score ≥ | 0.75 |
+| idioma permitido | es/en |
+| categorías confiables | ≥ 1 con score > 0.6 |
+| resumen generado | no vacío |
+| no flagged spam | true |
+
+### 📊 Métricas & Observabilidad (Futuro)
+| Métrica | Descripción |
+|---------|-------------|
+| ingest_items_total | Conteo acumulado por tipo |
+| ingest_duplicates_total | Items descartados por hash |
+| enrichment_fail_total | Errores en etapa de enriquecimiento |
+| moderation_pending | Items pendientes revisión |
+| publish_latency_seconds | (published_at - discovered_at) |
+
+### 🗺️ Roadmap Fases Ingesta
+| Fase | Enfoque | Alcance |
+|------|---------|---------|
+| MVP | RSS + ProductHunt (limitado) | Tools + News básicos, moderación manual |
+| F2 | Añadir HackerNews + GitHub trending | Ampliar descubrimiento técnico |
+| F3 | Embeddings para dedupe semántico | Reducción de casi-duplicados |
+| F4 | Auto-publicación condicionada | Reglas + monitoreo precisión |
+| F5 | Panel moderador dedicado (frontend) | UX mejorada fuera del admin |
+
+### 🧪 Testing Estratégico (A implementar)
+| Test | Objetivo |
+|------|----------|
+| POST /api/news/ingest sin secreto | Rechazo 401 |
+| POST /api/news/ingest duplicado | 200 + duplicate=true |
+| Normalización URL | Eliminar trailing slashes/query ruido |
+| Hash consistente | Mismo URL distinto orden query → mismo hash |
+| Estados moderación | Transiciones válidas únicamente |
+
+### 🧾 Resumen Clave
+- n8n actúa como capa de orquestación (fetch + pre-procesado ligero).
+- El backend centraliza persistencia, dedupe, estados y moderación.
+- Manual first: publicar sólo tras revisión en primeras fases para garantizar calidad.
+- Arquitectura preparada para evolucionar a publicación semi-automática basada en score.
+- Toda comunicación entrante autenticada vía secreto y diseñada idempotente.
+
+> Esta estrategia minimiza riesgo de spam, mantiene calidad editorial inicial y permite escalar progresivamente complejidad de enriquecimiento e inteligencia.
 
 ---
 
