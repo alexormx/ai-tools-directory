@@ -50,7 +50,7 @@ El sistema integrará **pipelines de Inteligencia Artificial** que permitirán:
 
 | Componente | Tecnologías | Rol |
 |-------------|--------------|-----|
-| **Frontend** | React 18 + Vite / Next.js | Interfaz dinámica y optimizada para SEO |
+| **Frontend** | Next.js (App Router) + React 18 + Chakra UI | SSG/ISR para SEO y UI consistente |
 | **Backend** | Python 3.11 + Django REST Framework | API modular, segura y escalable |
 | **Automatización** | n8n (Docker) | Ingesta de datos y flujos ETL automatizados |
 | **Procesamiento Asíncrono** | Celery + Redis | Ejecución programada de tareas |
@@ -59,6 +59,53 @@ El sistema integrará **pipelines de Inteligencia Artificial** que permitirán:
 | **Infraestructura** | Docker + GitHub Actions + Render/Heroku | CI/CD y despliegue automatizado |
 | **Autenticación** | JWT + Social Auth | Seguridad y facilidad de acceso |
 | **Observabilidad** | Sentry / Prometheus | Monitoreo, métricas y trazabilidad |
+
+---
+
+## 🛠️ Tecnologías y Justificación Detallada
+
+Esta sección documenta cada herramienta/lenguaje seleccionado (o planificado) y el porqué de su inclusión en el proyecto.
+
+| Tecnología / Herramienta | Rol en el Proyecto | ¿Por qué se eligió? |
+|--------------------------|--------------------|---------------------|
+| Python 3.11 | Lenguaje backend | Estabilidad, mejoras de performance, typing moderno. |
+| Django | Framework web | Productividad alta, ORM sólido, admin integrado para gestión rápida. |
+| Django REST Framework (DRF) | API REST | Serialización robusta, paginación, filtros, permisos y ecosistema probado. |
+| Gunicorn | Servidor WSGI | Estándar de facto para producción Python, simple y estable. |
+| Next.js (App Router) | Framework React + SSG/ISR | SEO, rendimiento en edge, híbrido SSR/SSG e incremental revalidation. |
+| React 18 | Base UI | Hooks concurrentes, ecosistema amplio. |
+| Chakra UI | Librería de componentes | Theming rápido, accesibilidad lista, DX clara. |
+| TypeScript | Tipado frontend | Escalabilidad y prevención de errores. |
+| PostgreSQL 15 | Base de datos relacional | Integridad relacional, JSONB para datos semiestructurados, extensiones (trigram, full-text). |
+| Redis | Cache / Cola | Latencia muy baja para caching y broker de Celery. |
+| Celery | Tareas asíncronas | Manejo de jobs recurrentes y reintentos (noticias, embeddings, métricas). |
+| Celery Beat | Programador | Agenda periódica (ej: refresh de noticias cada 6h). |
+| n8n | Automatización / ETL | Enfoque low-code para scraping / ingest sin escribir pipelines manuales. |
+| JWT (SimpleJWT) | Autenticación API | Stateless, compatible con SPA y escalable horizontalmente. |
+| HuggingFace Transformers (plan) | NLP open-source | Flexibilidad para modelos locales y reducción de lock-in. |
+| OpenAI API (plan) | Embeddings / resumen | Alta calidad inicial para prototipos rápidos. |
+| FAISS / Qdrant (plan) | Vector store | Búsqueda semántica eficiente de embeddings. |
+| Pytest + pytest-django | Testing backend | Sintaxis clara, fixtures poderosas, ejecución rápida en CI. |
+| React Query (plan) | Data fetching | Cache normalizado de peticiones, gestión de estados remotos simplificada. |
+| Docker + Compose | Orquestación local | Reproducibilidad entre entornos y onboarding rápido. |
+| GitHub Actions (plan) | CI/CD | Automatización de tests, builds y despliegues sin infraestructura adicional. |
+| Render / Railway (plan) | PaaS Deploy | Despliegue rápido, soporte para servicios web + workers + cron. |
+| Sentry (plan) | Observabilidad de errores | Alertas y trazabilidad de problemas en producción. |
+| Prometheus (plan) | Métricas | Recolección y monitoreo de series temporales (rendimiento, jobs). |
+
+### Principios de Selección
+1. Productividad vs. complejidad: elegir herramientas maduras que aceleren el MVP (Django, DRF, Redis, Celery).
+2. Escalabilidad progresiva: planificar migraciones (TypeScript, vector DB) sin bloquear desarrollo temprano.
+3. Apertura y flexibilidad: preferencia por estándares y open-source (Django, Postgres, HuggingFace) con opción a APIs gestionadas (OpenAI) para acelerar experimentación.
+4. Separación de responsabilidades: automatización (n8n), ejecución diferida (Celery), API core (Django), presentación (React/Vite).
+5. Observabilidad temprana planificada: definir Sentry/Prometheus desde documentación aunque se incorporen después.
+
+### Roadmap de Adopción (Resumen)
+- Fase 1 (MVP): Django + DRF + Postgres + Next.js (SSG/ISR) + Chakra + Docker.
+- Fase 2: Celery + n8n + ingestas + embeddings iniciales (API externa).
+- Fase 3: Búsqueda semántica (FAISS/Qdrant) + modelos locales + observabilidad.
+
+> Nota: Las tecnologías marcadas como (plan) no deben implementarse sin requerimiento explícito para evitar sobreingeniería prematura.
 
 ---
 
@@ -72,6 +119,109 @@ React (Frontend) ──> Django REST API ──> PostgreSQL
        │
        └── n8n (integraciones externas, ETL, scraping controlado)
 ```
+
+---
+
+## 🔍 Flujo de Búsqueda de Herramientas (Diseño Funcional)
+
+Esta sección describe cómo funcionará la búsqueda de herramientas de IA desde que un usuario introduce una consulta hasta que se muestran los resultados. Se distinguen fases: MVP (fase textual) y evolución (fase semántica / recomendaciones).
+
+### 1. Entrada del Usuario (Frontend)
+- El usuario ingresa texto en un campo de búsqueda y selecciona filtros (categoría, tag, pricing, destacado, orden).
+- El frontend construye una URL con query params, p.ej:
+  `GET /api/tools/?search=vector&category=nlp&tag=embeddings&pricing=free&page=1`
+
+### 2. API Gateway (Django REST Framework)
+- Endpoint: `GET /api/tools/`
+- DRF aplica:
+  - Paginación (default 20)
+  - Filtros (`django-filter`) en categoría, tags, pricing
+  - Búsqueda (`SearchFilter`) sobre campos: `name`, `description`, `tags__name` (MVP)
+  - Orden por `-created_at` (default) o `?ordering=score` (cuando se añada ranking compuesto)
+
+### 3. Capa de Query (MVP)
+- ORM genera JOINs contra tablas `Tool`, `Category`, `Tag`.
+- Búsqueda textual básica: `ILIKE` o `trigram similarity` (cuando se habilite extensión) para relevancia inicial.
+- Resultado: subconjunto paginado + `count` global.
+
+### 4. Capa de Ranking (Evolución)
+Futuro algoritmo de score combinado:
+| Factor | Fuente | Notas |
+|--------|--------|-------|
+| Relevancia textual | Postgres (ts_rank / trigram) | Peso base |
+| Similaridad semántica | Vector store (FAISS/Qdrant) | Embeddings (name+description) |
+| Popularidad | Métricas (uso, clics) | Normalización 0-1 |
+| Calidad | Rating promedio | Penaliza baja valoración |
+
+`score_final = w_t * text + w_s * semantic + w_p * popularity + w_r * rating`
+
+Si el vector store falla → fallback a sólo relevancia textual.
+
+### 5. Caching e Invalidez
+- Resultados de queries frecuentes (`search + filtros + page`) se almacenan en Redis (TTL corto, ej. 300s).
+- Invalidez selectiva tras creación/actualización de herramienta o tarea Celery de recomputación (`refresh_tool_stats`).
+
+### 6. Serialización
+Respuesta JSON (ejemplo previsto):
+```json
+{
+  "count": 124,
+  "next": "http://localhost:8000/api/tools/?search=vector&page=2",
+  "previous": null,
+  "results": [
+    {
+      "name": "VectorAI Toolkit",
+      "slug": "vectorai-toolkit",
+      "description": "Librería para búsqueda semántica y embeddings.",
+      "categories": [{"name": "NLP", "slug": "nlp"}],
+      "tags": [{"name": "embeddings", "slug": "embeddings"}],
+      "pricing": "free",
+      "score": 0.8421,
+      "created_at": "2025-10-05T12:30:00Z"
+    }
+  ]
+}
+```
+
+### 7. Renderizado Frontend
+- El frontend consume la respuesta y despliega tarjetas (`ToolCard`).
+- Destaca términos buscados (fase futura: resaltado textual o snippet generado por embeddings + chunk summarization).
+- Controles de paginación inferiores (botones, número de página).
+
+### 8. Telemetría y Mejora Continua (Futuro)
+- Clicks sobre resultados → registrados para ajustar `popularity`.
+- Tiempos de permanencia → señales de calidad de resultado.
+- Failover y métricas de latencia reportadas a Sentry / Prometheus.
+
+### 9. Tareas Asíncronas Relevantes
+| Tarea | Objetivo | Frecuencia |
+|-------|----------|------------|
+| `refresh_tool_stats` | Recalcular métricas (popularidad, rating agregado) | Cada 1h / on-demand |
+| `compute_embeddings_for_new_tool` (plan) | Generar vector y guardar en store | On create |
+| `rebuild_vector_index` (plan) | Re-index global (mantenimiento) | Diario |
+
+### 10. Flujo Resumido (Texto)
+```
+Usuario → (Query+Filtros) → Frontend construye URL → /api/tools/ → DRF filtros + búsqueda → DB (texto) + (vector store opcional) → Combina scores → Cache Redis → Respuesta JSON → Render ToolCard → (Telemetry en background)
+```
+
+### 11. Estrategia de Degradación
+| Fallo | Acción | Impacto |
+|-------|-------|---------|
+| Vector store down | Omitir score semántico | Resultados menos precisos |
+| Redis down | Ejecutar consulta directa | + Latencia |
+| Postgres lenta | Timeout → 504 | Mostrar mensaje de reintento |
+| Embeddings retrasados | Score semántico nulo temporal | Ranking parcial |
+
+### 12. Hoja de Ruta Técnica Búsqueda
+1. (MVP) Filtros + búsqueda textual básica + paginación.
+2. Trigram / full-text + indexación GIN.
+3. Generación embeddings + vector store (FAISS local o Qdrant).
+4. Fusion ranking multi-factor + caching Redis.
+5. Telemetría y ajuste dinámico de pesos.
+6. Recomendaciones personalizadas (perfil usuario + similitud herramientas).
+
+---
 
 ---
 
@@ -151,93 +301,118 @@ RUN npm run build
 CMD ["npm", "run", "start"]
 ```
 
-### 🧩 `docker-compose.yml`
+### 🧩 `docker-compose.yml` (extracto actualizado)
 ```yaml
-version: "3.9"
-
 services:
   backend:
     build: ./backend
-    container_name: ai_backend
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000
-    volumes:
-      - ./backend:/app
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-      - redis
     env_file:
-      - ./backend/.env
+      - ./.env
+      - ./backend/.env  # opcional overrides
+    depends_on: [db, redis]
+    ports: ["8000:8000"]
 
   frontend:
     build: ./frontend
-    container_name: ai_frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
+    env_file: [./.env]
+    depends_on: [backend]
+    ports: ["3000:3000"]
 
   db:
     image: postgres:15
-    container_name: ai_postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
-      POSTGRES_DB: ai_tools
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    env_file: [./.env]
 
   redis:
     image: redis:alpine
-    container_name: ai_redis
 
   celery:
     build: ./backend
     command: celery -A config worker -l info
-    depends_on:
-      - backend
-      - redis
-    env_file:
-      - ./backend/.env
+    env_file: [./.env, ./backend/.env]
+    depends_on: [backend, redis]
 
   celery_beat:
     build: ./backend
     command: celery -A config beat -l info
-    depends_on:
-      - backend
-      - redis
-    env_file:
-      - ./backend/.env
+    env_file: [./.env, ./backend/.env]
+    depends_on: [backend, redis]
 
   n8n:
     image: n8nio/n8n
-    container_name: ai_n8n
-    ports:
-      - "5678:5678"
-    environment:
-      - GENERIC_TIMEZONE=America/Mexico_City
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=supersecure
-    volumes:
-      - n8n_data:/home/node/.n8n
-
-volumes:
-  postgres_data:
-  n8n_data:
+    env_file: [./.env]
+    ports: ["5678:5678"]
 ```
 
 ### 🚀 Ejecución del Proyecto
+
+#### 1. Clonar y preparar variables
 ```bash
-# Construir e iniciar todos los contenedores
-docker compose up --build
+git clone https://github.com/alexormx/ai-tools-directory.git
+cd ai-tools-directory
+cp .env.example .env
+```
+Editar `.env` y sustituir:
+- `DJANGO_SECRET_KEY` (usa comando sugerido en el archivo)
+- `POSTGRES_PASSWORD`
+- `N8N_WEBHOOK_SECRET`
+- `N8N_BASIC_AUTH_PASSWORD`
+
+Opcional: crear `backend/.env` para overrides específicos (ej. DEBUG diferente al frontend).
+
+#### 2. (Temporal) Instalar dependencias frontend para generar lockfile
+```bash
+cd frontend
+npm install
+cd ..
 ```
 
-Accesos por defecto:  
-- **Frontend:** http://localhost:3000  
-- **Backend API:** http://localhost:8000  
-- **n8n Dashboard:** http://localhost:5678  
+#### 3. Construir e iniciar servicios
+```bash
+docker compose up --build -d
+```
+
+#### 4. Ver logs
+```bash
+docker compose logs -f frontend
+docker compose logs -f backend
+```
+
+#### 5. (Backend futuro) Migraciones y superusuario
+```bash
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py createsuperuser
+```
+
+#### 6. Parar y limpiar
+```bash
+docker compose down
+```
+
+Accesos por defecto:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- n8n Dashboard: http://localhost:5678
+
+### Variables de Entorno Clave
+| Nombre | Uso |
+|--------|-----|
+| DJANGO_SECRET_KEY | Seguridad Django |
+| POSTGRES_USER / PASSWORD / DB | Credenciales BD |
+| DATABASE_URL | Conexión unificada a Postgres |
+| REDIS_URL | Broker/resultado Celery |
+| CORS_ALLOWED_ORIGINS | Fuentes permitidas frontend |
+| N8N_WEBHOOK_SECRET | Validación ingest de noticias |
+| N8N_BASIC_AUTH_USER / PASSWORD | Acceso panel n8n |
+| NEXT_PUBLIC_API_BASE_URL | Base pública fetch frontend |
+| INTERNAL_API_BASE_URL | Base interna SSR (opcional) |
+| DEFAULT_PAGINATION_SIZE | Config paginación API |
+
+> Nunca commit de valores reales sensibles. `.env` está en `.gitignore`.
 
 ---
 

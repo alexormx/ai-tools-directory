@@ -1,0 +1,81 @@
+
+services:
+  backend:
+    build: ./backend
+    container_name: ai_backend
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - ./.env
+      - ./backend/.env  # opcional para overrides locales del backend
+
+  frontend:
+    build: ./frontend
+    container_name: ai_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    env_file:
+      - ./.env
+
+  db:
+    image: postgres:15
+    container_name: ai_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - ./.env
+
+  redis:
+    image: redis:alpine
+    container_name: ai_redis
+
+  celery:
+    build: ./backend
+    command: celery -A config worker -l info
+    depends_on:
+      - backend
+      - redis
+    env_file:
+      - ./.env
+      - ./backend/.env
+
+  celery_beat:
+    build: ./backend
+    command: celery -A config beat -l info
+    depends_on:
+      - backend
+      - redis
+    env_file:
+      - ./.env
+      - ./backend/.env
+
+  n8n:
+    image: n8nio/n8n
+    container_name: ai_n8n
+    ports:
+      - "5678:5678"
+    environment:
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-America/Mexico_City}
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    env_file:
+      - ./.env
+
+volumes:
+  postgres_data:
+  n8n_data:
