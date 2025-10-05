@@ -128,7 +128,8 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # --- Dev helper: Auto login admin (seguridad: SOLO usar en local) ---
-if DEBUG and os.getenv('DISABLE_ADMIN_AUTH', '0') == '1':  # pragma: no cover
+_disable_admin = os.getenv('DISABLE_ADMIN_AUTH', '0')
+if DEBUG and _disable_admin == '1':  # pragma: no cover
     # Insertar justo después de AuthenticationMiddleware
     try:
         idx = MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1
