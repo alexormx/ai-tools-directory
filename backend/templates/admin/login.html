@@ -1,12 +1,51 @@
 {% extends "admin/base_site.html" %}
-{% load static %}
+{% load i18n static %}
+
 {% block extrastyle %}
   {{ block.super }}
   <link rel="stylesheet" href="{% static 'css/admin_login.css' %}">
 {% endblock %}
+
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+
 {% block content %}
-  <div id="custom-login-wrapper">
-    <h1 id="site-name" class="login-logo">AI Tools Directory</h1>
-    {{ block.super }}
-  </div>
+<div id="custom-login-wrapper">
+  <h1 class="login-logo">AI Tools Directory</h1>
+
+  {% if form.errors and not form.non_field_errors %}
+    <p class="errornote">
+      {% if form.errors.items|length == 1 %}
+        {% translate "Please correct the error below." %}
+      {% else %}
+        {% translate "Please correct the errors below." %}
+      {% endif %}
+    </p>
+  {% endif %}
+
+  {% if form.non_field_errors %}
+    {% for error in form.non_field_errors %}
+      <p class="errornote">{{ error }}</p>
+    {% endfor %}
+  {% endif %}
+
+  <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
+    <div class="form-row">
+      {{ form.username.label_tag }}
+      {{ form.username }}
+    </div>
+    <div class="form-row">
+      {{ form.password.label_tag }}
+      {{ form.password }}
+      <input type="hidden" name="next" value="{{ next }}">
+    </div>
+    {% if site_url %}
+      <div class="password-reset-link">
+        <a href="{{ site_url }}">{% translate 'Return to site' %}</a>
+      </div>
+    {% endif %}
+    <div class="submit-row">
+      <input type="submit" value="{% translate 'Log in' %}">
+    </div>
+  </form>
+</div>
 {% endblock %}
