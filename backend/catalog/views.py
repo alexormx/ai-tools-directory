@@ -5,6 +5,10 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.db import IntegrityError
 from django.conf import settings
+from django.db import connections
+from django.db.utils import OperationalError
+import redis as redis_lib
+from celery import current_app as celery_app
 
 from .models import Category, Tag, Tool, Source, News
 from .serializers import CategorySerializer, TagSerializer, ToolSerializer, SourceSerializer, NewsSerializer
@@ -85,4 +89,37 @@ def ingest_news(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(_request):
-    return Response({'status': 'ok'})
+    # DB check
+    db_ok = True
+    try:
+        conn = connections['default']
+        conn.cursor()
+    except OperationalError:
+        db_ok = False
+
+    # Redis check (best-effort, no exception propagation)
+    redis_ok = True
+    try:
+        redis_url = settings.CELERY_BROKER_URL
+        r = redis_lib.from_url(redis_url, socket_connect_timeout=1, socket_timeout=1)
+        r.ping()
+    except Exception:  # pragma: no cover - degradación
+        redis_ok = False
+
+    # Celery registered task sample
+    celery_ok = True
+    try:
+        celery_ok = 'catalog.tasks.refresh_tool_stats' in celery_app.tasks
+    except Exception:  # pragma: no cover
+        celery_ok = False
+
+    overall = db_ok and redis_ok and celery_ok
+    status_code = 200 if overall else 503
+    return Response({
+        'status': 'ok' if overall else 'degraded',
+        'components': {
+            'db': db_ok,
+            'redis': redis_ok,
+            'celery': celery_ok,
+        }
+    }, status=status_code)

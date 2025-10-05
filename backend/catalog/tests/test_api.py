@@ -7,7 +7,11 @@ from catalog.models import Category, Tool
 def test_health(client):
     r = client.get('/health/')
     assert r.status_code == 200
-    assert r.json()['status'] == 'ok'
+    body = r.json()
+    assert body['status'] in ('ok', 'degraded')
+    assert 'components' in body
+    for key in ['db', 'redis', 'celery']:
+        assert key in body['components']
 
 
 @pytest.mark.django_db
