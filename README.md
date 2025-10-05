@@ -609,9 +609,15 @@ DISABLE_ADMIN_AUTH=1
 Archivo: `backend/config/middleware.py` (`AutoAdminLoginMiddleware`).
 
 Comportamiento:
-- Si no existe un superusuario crea `devadmin` con password inseguro local `devpassword123`.
-- Evita el formulario de login mientras el flag está activo.
-- No usar en producción (poner `DISABLE_ADMIN_AUTH=0`).
+- Reutiliza un superusuario existente si lo hay.
+- NO crea usuarios con credenciales hardcodeadas en el repositorio.
+- Creación automática opcional sólo si defines en `.env` además:
+  - `CREATE_DEV_SUPERUSER=1`
+  - `DEV_SUPERUSER_NAME=admin_local` (ejemplo)
+  - `DEV_SUPERUSER_EMAIL=admin@example.com`
+  - `DEV_SUPERUSER_PASSWORD=una_password_segura`
+- Si `CREATE_DEV_SUPERUSER` no está activo y no hay superusuario, se mostrará el login normal.
+- No usar en producción (poner `DISABLE_ADMIN_AUTH=0` y no exponer las variables anteriores).
 
 Desactivar:
 ```
