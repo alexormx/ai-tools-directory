@@ -600,6 +600,27 @@ docker compose exec backend python manage.py collectstatic --noinput
 | Theming DRF | Navegación API más agradable para devs |
 | Infra de estáticos optimizada | Menos complejidad para despliegues iniciales |
 
+### 6. Modo Dev: Auto-Login Temporal del Admin
+Para acelerar iteraciones en desarrollo se habilitó un middleware opcional que inicia sesión automáticamente en `/admin/` cuando:
+```
+DJANGO_DEBUG=1
+DISABLE_ADMIN_AUTH=1
+```
+Archivo: `backend/config/middleware.py` (`AutoAdminLoginMiddleware`).
+
+Comportamiento:
+- Si no existe un superusuario crea `devadmin` con password inseguro local `devpassword123`.
+- Evita el formulario de login mientras el flag está activo.
+- No usar en producción (poner `DISABLE_ADMIN_AUTH=0`).
+
+Desactivar:
+```
+DISABLE_ADMIN_AUTH=0
+docker compose restart backend
+```
+
+Luego el formulario de login personalizado vuelve a mostrarse (`backend/templates/admin/login.html`).
+
 ---
 
 ## 🔄 Resumen de Cambios Recientes (Changelog Interno)
