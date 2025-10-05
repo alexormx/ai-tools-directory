@@ -5,8 +5,13 @@ import { Heading, Container, Text, Badge, Stack } from '@chakra-ui/react';
 export const revalidate = 3600;
 
 export async function generateStaticParams() {
-  const slugs = await getToolSlugs();
-  return slugs.map(slug => ({ slug }));
+  try {
+    const slugs = await getToolSlugs();
+    // Si está vacío o backend inaccesible, retorna lista vacía para evitar error en build
+    return (slugs || []).map(slug => ({ slug }));
+  } catch {
+    return [];
+  }
 }
 
 export default async function ToolDetail({ params }: { params: { slug: string } }) {

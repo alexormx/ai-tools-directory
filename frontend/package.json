@@ -1,7 +1,11 @@
 {
   "name": "ai-tools-frontend",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "engines": {
+    "node": ">=18.17.0",
+    "npm": ">=9"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
