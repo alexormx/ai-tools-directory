@@ -76,6 +76,10 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 if not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    # Facilita servir estáticos (incluye admin) sin necesitar collectstatic en dev
+    WHITENOISE_AUTOREFRESH = True
+    WHITENOISE_USE_FINDERS = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -122,6 +126,15 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': _fetch_news_featured_minutes * 60,
     },
 }
+
+# --- Dev helper: Auto login admin (seguridad: SOLO usar en local) ---
+if DEBUG and os.getenv('DISABLE_ADMIN_AUTH', '0') == '1':  # pragma: no cover
+    # Insertar justo después de AuthenticationMiddleware
+    try:
+        idx = MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1
+    except ValueError:
+        idx = len(MIDDLEWARE)
+    MIDDLEWARE.insert(idx, 'config.middleware.AutoAdminLoginMiddleware')
 
 # Test friendly DB config override (pytest can set ENV to force sqlite for speed)
 if os.getenv('USE_SQLITE_FOR_TESTS', '0') == '1':  # pragma: no cover
