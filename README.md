@@ -348,55 +348,213 @@ services:
     ports: ["5678:5678"]
 ```
 
-### 🚀 Ejecución del Proyecto
+### 🚀 Ejecución del Proyecto (Guía Docker Paso a Paso)
 
-#### 1. Clonar y preparar variables
+Esta guía sirve para que cualquier miembro del equipo ponga el stack completo en marcha rápidamente.
+
+#### 0. Prerrequisitos
+- Docker Engine + Docker Compose Plugin (≥ 24.x)
+- (Opcional) Node 18+ / npm (solo si vas a desarrollar frontend fuera de contenedor)
+- (Opcional) Python 3.11 local (solo si inspeccionas el backend fuera de Docker)
+
+Verifica:
+```bash
+docker --version
+docker compose version
+```
+
+#### 1. Clonar el repositorio
 ```bash
 git clone https://github.com/alexormx/ai-tools-directory.git
 cd ai-tools-directory
-cp .env.example .env
 ```
-Editar `.env` y sustituir:
-- `DJANGO_SECRET_KEY` (usa comando sugerido en el archivo)
-- `POSTGRES_PASSWORD`
-- `N8N_WEBHOOK_SECRET`
-- `N8N_BASIC_AUTH_PASSWORD`
 
-Opcional: crear `backend/.env` para overrides específicos (ej. DEBUG diferente al frontend).
-
-#### 2. (Temporal) Instalar dependencias frontend para generar lockfile
+#### 2. Crear archivo `.env`
+El proyecto ahora NO incluye `.env.example` (se eliminó para evitar confusión). Crea manualmente `.env` en la raíz con (ajusta valores sensibles):
 ```bash
-cd frontend
-npm install
-cd ..
+cat > .env <<'EOF'
+DJANGO_SECRET_KEY=django-insecure-reemplaza
+DJANGO_DEBUG=1
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+POSTGRES_USER=ai_tools
+POSTGRES_PASSWORD=change_me
+POSTGRES_DB=ai_tools
+DATABASE_URL=postgresql://ai_tools:change_me@db:5432/ai_tools
+
+REDIS_URL=redis://redis:6379/0
+CELERY_BROKER_URL=${REDIS_URL}
+CELERY_RESULT_BACKEND=${REDIS_URL}
+
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+
+N8N_WEBHOOK_SECRET=n8nwhk_placeholder
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=change_me_admin_pwd
+N8N_BASIC_AUTH_ACTIVE=true
+GENERIC_TIMEZONE=America/Mexico_City
+
+ACCESS_TOKEN_LIFETIME_MIN=30
+REFRESH_TOKEN_LIFETIME_DAYS=7
+
+DEFAULT_PAGINATION_SIZE=20
+REFRESH_FEATURED_INTERVAL_MIN=60
+FETCH_NEWS_FEATURED_INTERVAL_MIN=360
+CELERY_TASK_ALWAYS_EAGER=0
+USE_SQLITE_FOR_TESTS=0
+
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+INTERNAL_API_BASE_URL=http://backend:8000
+EOF
 ```
 
-#### 3. Construir e iniciar servicios
+Para generar un SECRET KEY seguro:
 ```bash
-docker compose up --build -d
+python -c "import secrets; print('django-insecure-' + secrets.token_urlsafe(48))"
 ```
 
-#### 4. Ver logs
+Para generar un webhook secreto:
 ```bash
-docker compose logs -f frontend
-docker compose logs -f backend
+python -c "import secrets; print('n8nwhk_' + secrets.token_urlsafe(40))"
 ```
 
-#### 5. (Backend futuro) Migraciones y superusuario
+#### 3. (Opcional) Overrides específicos de backend
+Si necesitas cambiar algo SOLO para backend sin tocar `.env` global:
+```bash
+mkdir -p backend
+echo 'DJANGO_DEBUG=0' > backend/.env
+```
+El `docker-compose.yml` ya incluye `./backend/.env` como override opcional.
+
+#### 4. Construir e iniciar TODOS los servicios (stack completo)
+```bash
+docker compose up -d --build
+```
+Esto levantará: Postgres, Redis, Backend (Gunicorn), Frontend (Next), Celery Worker, Celery Beat, n8n.
+
+#### 5. Verificación rápida
+```bash
+docker compose ps
+docker compose logs -f backend | sed -n '1,30p'
+curl -s http://localhost:8000/health/  # debería retornar {"status":"ok"}
+```
+
+#### 6. Ejecutar migraciones y crear superusuario
 ```bash
 docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py createsuperuser
 ```
 
-#### 6. Parar y limpiar
+#### 7. Accesos
+- Frontend: http://localhost:3000
+- API Root (DRF browsable): http://localhost:8000/api/
+- Admin Django: http://localhost:8000/admin/
+- n8n: http://localhost:5678 (usuario/contraseña definidos en `.env`)
+
+#### 8. Sembrar datos rápidos (ejemplo mínimo)
+```bash
+docker compose exec backend python manage.py shell -c "from catalog.models import Category,Tool; c,_=Category.objects.get_or_create(name='NLP'); Tool.objects.get_or_create(name='Demo Tool')"
+```
+
+#### 9. Ver herramientas
+http://localhost:3000/tools (si añadiste datos)
+
+#### 10. Parar contenedores conservando datos
 ```bash
 docker compose down
 ```
 
-Accesos por defecto:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- n8n Dashboard: http://localhost:5678
+#### 11. Parar y borrar volúmenes (RESET total)
+```bash
+docker compose down -v
+```
+
+#### 12. Reconstruir sólo un servicio tras cambios
+```bash
+docker compose build backend && docker compose up -d backend
+docker compose build frontend && docker compose up -d frontend
+```
+
+#### 13. Ver logs específicos
+```bash
+docker compose logs -f backend
+docker compose logs -f celery
+docker compose logs -f celery_beat
+docker compose logs -f frontend
+```
+
+#### 14. Ejecutar pruebas backend
+```bash
+docker compose exec backend pytest -q
+```
+
+#### 15. Ejecutar un comando Django puntual
+```bash
+docker compose exec backend python manage.py shell_plus  # si luego añadimos django-extensions
+```
+
+### 🔧 Comandos Frecuentes (Cheat Sheet)
+
+| Objetivo | Comando |
+|----------|---------|
+| Build + up completo | `docker compose up -d --build` |
+| Sólo backend (rápido al desarrollar) | `docker compose up -d db redis backend` |
+| Reiniciar frontend | `docker compose restart frontend` |
+| Limpiar caché imágenes huérfanas | `docker image prune -f` |
+| Entrar a shell del contenedor backend | `docker compose exec backend bash` |
+| Mostrar migraciones | `docker compose exec backend python manage.py showmigrations` |
+| Crear nueva app Django | `docker compose exec backend python manage.py startapp <nombre>` |
+| Correr Celery tarea manual | `docker compose exec backend python manage.py shell -c 'from catalog.tasks import refresh_all_featured_tools; refresh_all_featured_tools.delay()'` |
+
+### 🛡️ Buenas Prácticas con `.env`
+| Regla | Motivo |
+|-------|--------|
+| No commitear credenciales reales | Seguridad / secreto rota rápidamente |
+| Usar sufijos `_INTERVAL_MIN` para tiempos | Legibilidad humana y conversión clara en settings |
+| Separar override en `backend/.env` para DEBUG | Evitar tocar config global del equipo |
+
+### 🧪 Flags Útiles
+| Variable | Uso |
+|----------|-----|
+| `CELERY_TASK_ALWAYS_EAGER=1` | Ejecutar tareas sin worker (tests rápidos) |
+| `USE_SQLITE_FOR_TESTS=1` | Forzar SQLite (no recomendado si dependes de Postgres features) |
+
+### ❗ Troubleshooting
+| Problema | Causa Probable | Solución |
+|----------|----------------|----------|
+| Backend no arranca (migraciones faltantes) | BD limpia | `docker compose exec backend python manage.py migrate` |
+| Error conexión Postgres | Variables DB mal / puerto en uso | Ver logs `db` y revisar `DATABASE_URL` |
+| Frontend build falla (`module not found`) | Dependencia no listada | Añadir en `package.json` y rebuild |
+| `IntegrityError` en ingest | URL duplicada | Es comportamiento esperado (idempotencia) |
+| Celery no ejecuta tareas | Worker no levantado | `docker compose up -d celery celery_beat` |
+| Cambié `requirements.txt` y no refleja | Caché de build | `docker compose build --no-cache backend` |
+| Puerto 3000/8000 ocupado | Otro proceso local | Matar proceso o ajustar puertos en compose |
+
+### 🔐 Seguridad Básica (MVP)
+- Rotar `DJANGO_SECRET_KEY` antes de primer despliegue público.
+- Cambiar `N8N_BASIC_AUTH_PASSWORD` y desactivar `DJANGO_DEBUG` en producción.
+- Limitar `ALLOWED_HOSTS` en entornos reales.
+- Añadir HTTPS en capa de reverse proxy (futuro: Nginx / Render / Railway).
+
+### 🌱 Roadmap DevOps Futuro
+| Item | Descripción |
+|------|-------------|
+| Multi-stage backend Docker | Optimizar tamaño final y capa de dependencias |
+| Imagen slim con wheels cache | Mejorar tiempos de build CI |
+| Healthcheck extendido | Verificación DB + Redis + Celery ping |
+| CI: coverage + artefactos | Reportar cobertura y linting |
+| CD: despliegue automatizado | Push a Render / Railway mediante tags |
+
+---
+
+Accesos por defecto (resumen):
+| Servicio | URL |
+|----------|-----|
+| Frontend | http://localhost:3000 |
+| Backend API Root | http://localhost:8000/api/ |
+| Health | http://localhost:8000/health/ |
+| Admin Django | http://localhost:8000/admin/ |
+| n8n | http://localhost:5678 |
 
 ### Variables de Entorno Clave
 | Nombre | Uso |
@@ -411,6 +569,10 @@ Accesos por defecto:
 | NEXT_PUBLIC_API_BASE_URL | Base pública fetch frontend |
 | INTERNAL_API_BASE_URL | Base interna SSR (opcional) |
 | DEFAULT_PAGINATION_SIZE | Config paginación API |
+| REFRESH_FEATURED_INTERVAL_MIN | Minutos entre refresh de herramientas destacadas |
+| FETCH_NEWS_FEATURED_INTERVAL_MIN | Minutos entre fetch de noticias destacadas |
+| CELERY_TASK_ALWAYS_EAGER | Ejecutar tareas sin worker (tests) |
+| USE_SQLITE_FOR_TESTS | Forzar SQLite en tests |
 
 > Nunca commit de valores reales sensibles. `.env` está en `.gitignore`.
 
