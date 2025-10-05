@@ -254,7 +254,7 @@ Usuario → (Query+Filtros) → Frontend construye URL → /api/tools/ → DRF f
 
 ## 🐳 Docker y Contenedorización
 
-El proyecto utiliza **Docker** para contenerizar tanto el **backend (Python/Django)** como el **frontend (React/Next.js)**, junto con servicios auxiliares como PostgreSQL, Redis, Celery y n8n.  
+El proyecto utiliza **Docker** para contenerizar tanto el **backend (Python/Django)** como el **frontend (React/Next.js)**, junto con servicios auxiliares como **PostgreSQL**, **Redis**, **Celery Worker**, **Celery Beat** y **n8n** (automatización).  
 Esto garantiza entornos reproducibles, despliegues simples y escalabilidad.
 
 ### 📁 Estructura de Proyecto
@@ -430,7 +430,7 @@ El `docker-compose.yml` ya incluye `./backend/.env` como override opcional.
 ```bash
 docker compose up -d --build
 ```
-Esto levantará: Postgres, Redis, Backend (Gunicorn), Frontend (Next), Celery Worker, Celery Beat, n8n.
+Esto levantará: Postgres, Redis, Backend (Gunicorn), Frontend (Next), Celery Worker, Celery Beat y n8n (panel en http://localhost:5678).
 
 #### 5. Verificación rápida
 ```bash
@@ -450,6 +450,7 @@ docker compose exec backend python manage.py createsuperuser
 - API Root (DRF browsable): http://localhost:8000/api/
 - Admin Django: http://localhost:8000/admin/
 - n8n: http://localhost:5678 (usuario/contraseña definidos en `.env`)
+  - Ejemplo de webhook futuro: `/api/news/ingest/` con header `X-Webhook-Secret: $N8N_WEBHOOK_SECRET`
 
 #### 8. Sembrar datos rápidos (ejemplo mínimo)
 ```bash
@@ -555,6 +556,61 @@ Accesos por defecto (resumen):
 | Health | http://localhost:8000/health/ |
 | Admin Django | http://localhost:8000/admin/ |
 | n8n | http://localhost:5678 |
+
+---
+
+## 🖌️ Theming & Experiencia de Administración
+
+Se han aplicado personalizaciones para mejorar la UX del equipo interno sin añadir dependencias pesadas de terceros (opcional agregar Jazzmin más adelante si se requiere UI más avanzada):
+
+### 1. Admin Django
+- Archivo base override: `backend/templates/admin/base_site.html` (branding y CSS custom).
+- Estilos principales: `backend/static/css/admin_custom.css`.
+- Página de login personalizada (gradiente + glass effect): `backend/templates/admin/login.html` usando `admin_login.css`.
+- Dashboard con métricas rápidas (conteos de herramientas, categorías, tags, noticias):
+  - Template: `backend/templates/admin/index.html`
+  - CSS: `backend/static/css/admin_dashboard.css`
+  - Context processor: `config.context_processors.dashboard_metrics` (archivo `backend/config/context_processors.py`).
+
+### 2. DRF Browsable API
+- Override de template: `backend/templates/rest_framework/base.html`.
+- Estilos: `backend/static/css/api_theme.css` (navbar con gradiente y tipografía mejorada).
+
+### 3. WhiteNoise / Estáticos
+- Activado `whitenoise.middleware.WhiteNoiseMiddleware` para servir estáticos comprimidos y con hash en producción (`CompressedManifestStaticFilesStorage`).
+- Directorios añadidos: `static/` (fuentes, CSS), `templates/`.
+- Comando de recolección:
+```bash
+docker compose exec backend python manage.py collectstatic --noinput
+```
+
+### 4. Extensiones Futuras (Opcional)
+| Idea | Descripción | Estado |
+|------|-------------|--------|
+| Jazzmin | Tema avanzado con iconografía y layout mejorado | Pendiente (decisión futura) |
+| Panel React Interno | Dashboard Next.js protegido con JWT | Planificado |
+| Métricas en Tiempo Real | Widgets con Celery + Redis cache | Planificado |
+
+### 5. Beneficios Logrados
+| Mejora | Impacto |
+|--------|---------|
+| Branding consistente | Identidad visual interna clara |
+| Métricas en dashboard | Visión rápida del estado de datos |
+| Estética login | Mejor adopción y percepción profesional |
+| Theming DRF | Navegación API más agradable para devs |
+| Infra de estáticos optimizada | Menos complejidad para despliegues iniciales |
+
+---
+
+## 🔄 Resumen de Cambios Recientes (Changelog Interno)
+| Commit (mensaje resumido) | Descripción |
+|---------------------------|-------------|
+| feat(admin): estilizado básico... | Override base_site + CSS inicial admin |
+| feat(admin+api): dashboard métricas... | Login custom, métricas, theming DRF |
+
+> Para ver histórico completo: `git log --oneline --decorate --graph -n 15`
+
+---
 
 ### Variables de Entorno Clave
 | Nombre | Uso |
