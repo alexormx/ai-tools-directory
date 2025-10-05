@@ -436,7 +436,7 @@ Esto levantará: Postgres, Redis, Backend (Gunicorn), Frontend (Next), Celery Wo
 ```bash
 docker compose ps
 docker compose logs -f backend | sed -n '1,30p'
-curl -s http://localhost:8000/health/  # debería retornar {"status":"ok"}
+curl -s http://localhost:8000/health/  # debería retornar {"status":"ok","components":{"db":true,"redis":true,"celery":true}}
 ```
 
 #### 6. Ejecutar migraciones y crear superusuario
@@ -627,6 +627,23 @@ docker compose restart backend
 
 Luego el formulario de login personalizado vuelve a mostrarse (`backend/templates/admin/login.html`).
 
+### 7. Health Endpoint Extendido
+El endpoint `/health/` ahora devuelve un JSON con el estado de componentes críticos:
+```json
+{
+  "status": "ok",          // o "degraded" si algún componente falla
+  "components": {
+    "db": true,
+    "redis": true,
+    "celery": true
+  }
+}
+```
+Código fuente: `catalog/views.py` función `health`.
+Estados:
+- `ok`: todos los componentes respondieron.
+- `degraded` (HTTP 503): uno o más componentes fallaron (no detiene la app, sirve como alerta temprana).
+
 ---
 
 ## 🔄 Resumen de Cambios Recientes (Changelog Interno)
@@ -634,6 +651,13 @@ Luego el formulario de login personalizado vuelve a mostrarse (`backend/template
 |---------------------------|-------------|
 | feat(admin): estilizado básico... | Override base_site + CSS inicial admin |
 | feat(admin+api): dashboard métricas... | Login custom, métricas, theming DRF |
+| fix(admin-login): restaurado formulario | Se reintroduce el form de autenticación manual |
+| feat(health): endpoint extendido | Chequeos DB/Redis/Celery y test actualizado |
+| fix(health): detección Celery | Chequeo genérico del registro de tareas |
+| feat(dev): middleware auto-login | Inserción condicional según DISABLE_ADMIN_AUTH |
+| fix(admin): eliminar extends duplicado | Limpieza de template index admin |
+| chore(dev): refactor variable interna | Variable `_disable_admin` en settings |
+| chore(auth-dev): parametrizar auto-login | Variables de entorno para crear superuser dev |
 
 > Para ver histórico completo: `git log --oneline --decorate --graph -n 15`
 
@@ -656,6 +680,11 @@ Luego el formulario de login personalizado vuelve a mostrarse (`backend/template
 | FETCH_NEWS_FEATURED_INTERVAL_MIN | Minutos entre fetch de noticias destacadas |
 | CELERY_TASK_ALWAYS_EAGER | Ejecutar tareas sin worker (tests) |
 | USE_SQLITE_FOR_TESTS | Forzar SQLite en tests |
+| DISABLE_ADMIN_AUTH | (Dev) Activar auto-login admin sin formulario |
+| CREATE_DEV_SUPERUSER | (Dev) Crear superusuario si no existe (1/0) |
+| DEV_SUPERUSER_NAME | (Dev) Nombre del superusuario a crear |
+| DEV_SUPERUSER_EMAIL | (Dev) Email del superusuario a crear |
+| DEV_SUPERUSER_PASSWORD | (Dev) Password del superusuario (no commitear) |
 
 > Nunca commit de valores reales sensibles. `.env` está en `.gitignore`.
 
