@@ -1,0 +1,64 @@
+:root {
+  --admin-accent: #6366f1;
+  --admin-accent-alt: #8b5cf6;
+}
+
+/* Tipografía & layout */
+body.login, body.dashboard, .app-index, .change-form {
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+}
+
+#header {
+  background: linear-gradient(120deg,var(--admin-accent), var(--admin-accent-alt));
+}
+#header h1 a:link, #header h1 a:visited {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.35);
+}
+
+/* Botones primarios */
+.button.default, input[type=submit].default, .submit-row input.default {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  box-shadow: none;
+}
+.button.default:hover, input[type=submit].default:hover, .submit-row input.default:hover {
+  background: var(--admin-accent-alt);
+  border-color: var(--admin-accent-alt);
+}
+
+/* Tarjetas listado */
+.module caption, .module h2, .inline-group h2 {
+  background: linear-gradient(120deg,var(--admin-accent) 0%, var(--admin-accent-alt) 100%);
+  color: #fff;
+}
+
+/* Enlaces */
+a:link, a:visited {
+  color: var(--admin-accent);
+}
+a:hover {
+  color: var(--admin-accent-alt);
+}
+
+/* Login */
+#container #content-main {
+  background: #fff;
+  padding: 2rem 2.2rem 2.4rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px -4px rgba(0,0,0,.12), 0 10px 38px -6px rgba(0,0,0,.08);
+}
+body.login #header { display: none; }
+body.login #branding { display: none; }
+
+/* Formularios */
+fieldset.module.aligned h2 { margin-top: 0; }
+input, select, textarea {
+  border-radius: 6px !important;
+}
+
+/* List table hover */
+#result_list tbody tr:hover { background: #eef2ff; }
+
+/* Footer */
+#footer { opacity: .85; }
