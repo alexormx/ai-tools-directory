@@ -1,3 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'css/admin_dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-cards">
+  <div class="dash-card">
+    <div class="dash-card-value">{{ metric_tool_count }}</div>
+    <div class="dash-card-label">Herramientas</div>
+  </div>
+  <div class="dash-card">
+    <div class="dash-card-value">{{ metric_category_count }}</div>
+    <div class="dash-card-label">Categorías</div>
+  </div>
+  <div class="dash-card">
+    <div class="dash-card-value">{{ metric_tag_count }}</div>
+    <div class="dash-card-label">Tags</div>
+  </div>
+  <div class="dash-card">
+    <div class="dash-card-value">{{ metric_news_count }}</div>
+    <div class="dash-card-label">Noticias</div>
+  </div>
+</div>
+<hr style="margin:2rem 0;" />
+{{ block.super }}
+{% endblock %}
 {% extends "admin/index.html" %}
 {% load static %}
 {% block extrastyle %}
