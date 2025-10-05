@@ -1,6 +1,6 @@
 .navbar {background:linear-gradient(120deg,#6366f1,#8b5cf6)!important;}
 .navbar .navbar-brand, .navbar-nav>li>a {color:#fff!important;}
-.api-brand-gradient {background:linear-gradient(120deg,#fff,#e0e7ff);-webkit-background-clip:text;color:transparent;font-weight:600;}
+.api-brand-gradient {background:linear-gradient(120deg,#fff,#e0e7ff);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:600;}
 .content-main h1 {font-size:1.8rem;font-weight:600;}
 .form-control, select, textarea {border-radius:6px!important;}
 .footer {opacity:.75;}

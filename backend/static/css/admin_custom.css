@@ -3,6 +3,13 @@
   --admin-accent-alt: #8b5cf6;
 }
 
+.gradient-text {
+  background: linear-gradient(120deg,var(--admin-accent), var(--admin-accent-alt));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 /* Tipografía & layout */
 body.login, body.dashboard, .app-index, .change-form {
   font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
