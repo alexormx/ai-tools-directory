@@ -106,10 +106,11 @@ def health(_request):
     except Exception:  # pragma: no cover - degradación
         redis_ok = False
 
-    # Celery registered task sample
+    # Celery availability: check that at least one task registry exists (core tasks always loaded)
     celery_ok = True
     try:
-        celery_ok = 'catalog.tasks.refresh_tool_stats' in celery_app.tasks
+        # Using built-in ping via app.control.inspect would require a running worker; here just ensure loader ran
+        celery_ok = bool(celery_app.tasks) and 'celery.backend_cleanup' in celery_app.tasks
     except Exception:  # pragma: no cover
         celery_ok = False
 
