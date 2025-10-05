@@ -1,0 +1,11 @@
+{% extends "rest_framework/base.html" %}
+{% load static %}
+{% block styles %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'css/api_theme.css' %}">
+{% endblock %}
+{% block branding %}
+  <a class="navbar-brand" rel="nofollow" href="/api/">
+    <span class="api-brand-gradient">AI Tools API</span>
+  </a>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "admin/login.html" %}
+{% load static %}
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'css/admin_login.css' %}">
+{% endblock %}
+{% block branding %}
+  <h1 id="site-name" class="login-logo">AI Tools Directory</h1>
+{% endblock %}
